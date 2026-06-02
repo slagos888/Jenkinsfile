@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        NAMESPACE = 'wordpress-prod-jenkins'
+        NAMESPACE = 'default'
     }
 
     stages {
@@ -12,7 +12,8 @@ pipeline {
                     echo "Archivos en el repositorio:"
                     ls -la
 
-                    
+                    echo ls
+                
                     test -f K8s/wordpress.yaml || exit 1
                 '''
             }
