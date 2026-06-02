@@ -1,85 +1,73 @@
 pipeline {
-    agent any
-
-    environment {
-        // Definimos el ID de las credenciales de Kubernetes configuradas en Jenkins
-        KUBE_CREDENTIALS_ID = 'kubeconfig-credentials'
-        // Definimos el espacio de nombres donde se desplegará WordPress
-        NAMESPACE           = 'wordpress-prod'
+    agent {
+        kubernetes {
+            // Usamos la ServiceAccount que creamos con permisos para Deployments, Pods y PVCs
+            serviceAccountName 'jenkins-deployer'
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ["cat"]
+    tty: true
+'''
+        }
     }
 
     stages {
         stage('1. Descargar Código') {
             steps {
-                // Descarga los manifiestos de Kubernetes desde tu repositorio de Git
                 checkout scm
             }
         }
 
         stage('2. Preparar Entorno') {
             steps {
-                script {
-                    echo "Asegurando que el namespace '${NAMESPACE}' exista..."
-                    // Usamos la herramienta conKubeconfig para ejecutar comandos con acceso al clúster
-                    withKubeConfig([credentialsId: String.valueOf(env.KUBE_CREDENTIALS_ID)]) {
-                        sh "kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
-                    }
+                container('kubectl') {
+                    echo "Asegurando que el namespace 'wordpress-prod' exista..."
+                    // Eliminamos el 'withKubeConfig' ya que el contenedor hereda los permisos automáticamente
+                    sh 'kubectl create namespace wordpress-prod --dry-run=client -o yaml | kubectl apply -f -'
                 }
             }
         }
 
         stage('3. Desplegar Base de Datos') {
             steps {
-                script {
-                    echo "Desplegando almacenamiento y base de datos MySQL..."
-                    withKubeConfig([credentialsId: String.valueOf(env.KUBE_CREDENTIALS_ID)]) {
-                        // Se asume que tienes un archivo consolidado o una carpeta para la BD
-                        // Por ejemplo: k8s/mysql-deployment.yaml
-                        sh "kubectl apply -f k8s/mysql-deployment.yaml -n ${NAMESPACE}"
-                        
-                        echo "Esperando que MySQL esté listo..."
-                        sh "kubectl rollout status deployment/wordpress-mysql -n ${NAMESPACE} --timeout=90s"
-                    }
+                container('kubectl') {
+                    echo "Desplegando MySQL..."
+                    // Asegúrate de pasar el namespace correcto si tus manifiestos no lo especifican dentro
+                    sh 'kubectl apply -f k8s/mysql-deployment.yaml -n wordpress-prod'
                 }
             }
         }
 
         stage('4. Desplegar WordPress') {
             steps {
-                script {
+                container('kubectl') {
                     echo "Desplegando WordPress..."
-                    withKubeConfig([credentialsId: String.valueOf(env.KUBE_CREDENTIALS_ID)]) {
-                        // Se aplica el despliegue de la aplicación de WordPress
-                        // Por ejemplo: k8s/wordpress-deployment.yaml
-                        sh "kubectl apply -f k8s/wordpress-deployment.yaml -n ${NAMESPACE}"
-                        
-                        echo "Esperando que WordPress esté listo..."
-                        sh "kubectl rollout status deployment/wordpress -n ${NAMESPACE} --timeout=90s"
-                    }
+                    sh 'kubectl apply -f k8s/wordpress-deployment.yaml -n wordpress-prod'
                 }
             }
         }
 
         stage('5. Verificar Despliegue') {
             steps {
-                script {
-                    withKubeConfig([credentialsId: String.valueOf(env.KUBE_CREDENTIALS_ID)]) {
-                        echo "=== Estado de los Pods ==="
-                        sh "kubectl get pods -n ${NAMESPACE}"
-                        echo "=== Servicios Disponibles ==="
-                        sh "kubectl get svc -n ${NAMESPACE}"
-                    }
+                container('kubectl') {
+                    echo "Validando estado de los Pods..."
+                    sh 'kubectl get pods -n wordpress-prod'
                 }
             }
         }
     }
 
     post {
-        success {
-            echo "¡El pipeline finalizó con éxito! WordPress ha sido actualizado en Kubernetes."
-        }
         failure {
-            echo "El despliegue falló. Revisa los logs de Jenkins o el estado del clúster."
+            echo 'El despliegue falló. Revisa los logs de Jenkins o el estado del clúster.'
+        }
+        success {
+            echo '¡Despliegue de WordPress y MySQL completado con éxito!'
         }
     }
 }
