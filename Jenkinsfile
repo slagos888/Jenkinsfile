@@ -18,5 +18,17 @@ pipeline {
                 '''
             }
         }
+        stage('Mostrar información') {
+            steps {
+                withKubeConfig([credentialsId: 'kubeconfig-credentials',
+                                serverUrl: 'https://192.168.49.2:8443',
+                                namespace: 'default']) {
+                    sh '''
+                        
+                        kubectl get svc 
+                    '''
+                }
+            }
+        }
     }
 }
