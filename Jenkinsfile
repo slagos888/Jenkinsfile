@@ -2,7 +2,7 @@ pipeline {
     agent {
         kubernetes {
             // Usamos la ServiceAccount que creamos con permisos para Deployments, Pods y PVCs
-            serviceAccountName 'jenkins-deploy'
+            serviceAccount 'jenkins-deploy'
             yaml '''
 apiVersion: v1
 kind: Pod
