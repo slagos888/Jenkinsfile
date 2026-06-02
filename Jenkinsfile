@@ -14,7 +14,7 @@ pipeline {
 
                     echo ls
                 
-                    test -f K8s/wordpress.yaml || exit 1
+                    test -f k8s/wordpress.yaml || exit 1
                 '''
             }
         }
