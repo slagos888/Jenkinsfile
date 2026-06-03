@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        NAMESPACE = 'default'
+        NAMESPACE = 'jenkins'
     }
 
     stages {
@@ -22,7 +22,7 @@ pipeline {
             steps {
                 withKubeConfig([credentialsId: 'kubeconfig-credentials',
                                 serverUrl: 'https://192.168.49.2:8443',
-                                namespace: 'default']) {
+                                namespace: 'jenkins']) {
                     sh '''
                         
                         kubectl get svc 
