@@ -43,22 +43,30 @@ pipeline {
         }
 
         stage('Verificar Despliegue') {
-            steps {
-                withKubeConfig([credentialsId: 'kubeconfig-credentials',
-                                serverUrl: 'https://192.168.49.2:8443',
-                                namespace: "${NAMESPACE}"]) {
-                    // Espera a que el rollout de WordPress se complete con éxito (asumiendo que tu deployment se llama 'wordpress')
-                    sh '''
-                        echo "Esperando que los Pods estén listos..."
-                        kubectl rollout status deployment/wordpress -n ${NAMESPACE} --timeout=90s
-                        
-                        echo "Recursos actuales en el namespace ${NAMESPACE}:"
-                        kubectl get all -n ${NAMESPACE}
-                    '''
-                }
-            }
+    steps {
+        withKubeConfig([credentialsId: 'kubeconfig-credentials',
+                        serverUrl: 'https://192.168.49.2:8443',
+                        namespace: "${NAMESPACE}"]) {
+            sh '''
+                echo "=== Estado actual de los Pods ==="
+                kubectl get pods -n ${NAMESPACE}
+
+                echo "=== Estado de los Almacenamientos (PVC) ==="
+                kubectl get pvc -n ${NAMESPACE}
+
+                echo "=== Esperando por el Deployment (intento de rollout) ==="
+                # Intentamos el rollout pero capturamos si falla para que no rompa el script antes de ver los eventos
+                kubectl rollout status deployment/wordpress -n ${NAMESPACE} --timeout=40s || true
+
+                echo "=== Descripción de los Pods (Aquí verás los errores reales) ==="
+                kubectl describe pods -n ${NAMESPACE}
+                
+                echo "=== Eventos recientes del clúster ==="
+                kubectl get events -n ${NAMESPACE} --sort-by='.metadata.creationTimestamp' | tail -n 20
+            '''
         }
     }
+}
     
     post {
         always {
